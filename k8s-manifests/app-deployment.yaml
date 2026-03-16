@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
       - name: nodejs-app
-        image: laxg66/3-tier-nodejs-mysql-docker-app
+        image: 
         ports:
         - containerPort: 5000
 
