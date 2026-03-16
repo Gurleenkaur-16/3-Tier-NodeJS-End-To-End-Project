@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
       - name: nodejs-app
-        image: devopsshack/nodejs-crud-project:48acd51e3a51d19ea38ecfb34b0ca751642164b3
+        image: devopsshack/nodejs-crud-project:c2c872702cd9e1af55483d43632cb4c99f240974
         ports:
         - containerPort: 5000
 
