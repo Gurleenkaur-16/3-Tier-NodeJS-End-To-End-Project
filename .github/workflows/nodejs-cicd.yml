@@ -19,15 +19,11 @@ jobs:
       - name: Checkout source code
         uses: actions/checkout@v4
 
+      - name: Setup Trivy
+        uses: aquasecurity/setup-trivy@v0.2.5
+
       - name: Run Trivy filesystem scan on client
-        uses: aquasecurity/trivy-action@0.28.0
-        with:
-          scan-type: fs
-          scan-ref: ./client
-          format: table
-          exit-code: 0
-          ignore-unfixed: true
-          severity: HIGH,CRITICAL
+        run: trivy fs ./client --format table --severity HIGH,CRITICAL --ignore-unfixed --exit-code 0
 
   server-trivy-fs:
     name: Server Trivy FS Scan
@@ -37,15 +33,11 @@ jobs:
       - name: Checkout source code
         uses: actions/checkout@v4
 
+      - name: Setup Trivy
+        uses: aquasecurity/setup-trivy@v0.2.5
+
       - name: Run Trivy filesystem scan on server
-        uses: aquasecurity/trivy-action@0.28.0
-        with:
-          scan-type: fs
-          scan-ref: ./server
-          format: table
-          exit-code: 0
-          ignore-unfixed: true
-          severity: HIGH,CRITICAL
+        run: trivy fs ./server --format table --severity HIGH,CRITICAL --ignore-unfixed --exit-code 0
 
   client-lint:
     name: Client Lint
@@ -213,14 +205,11 @@ jobs:
       - name: Checkout source code
         uses: actions/checkout@v4
 
+      - name: Setup Trivy
+        uses: aquasecurity/setup-trivy@v0.2.5
+
       - name: Build Docker image for scan
         run: docker build -t three-tier-app:${{ github.sha }} .
 
       - name: Run Trivy image scan
-        uses: aquasecurity/trivy-action@0.28.0
-        with:
-          image-ref: three-tier-app:${{ github.sha }}
-          format: table
-          exit-code: 0
-          ignore-unfixed: true
-          severity: HIGH,CRITICAL
+        run: trivy image three-tier-app:${{ github.sha }} --format table --severity HIGH,CRITICAL --ignore-unfixed --exit-code 0
