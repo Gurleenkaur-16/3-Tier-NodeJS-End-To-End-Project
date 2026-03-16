@@ -1,7 +1,5 @@
 FROM node:20-alpine
 
-ENV NODE_ENV=production
-
 # Build frontend
 WORKDIR /usr/src/app/client
 COPY client/package*.json ./
@@ -14,6 +12,9 @@ WORKDIR /usr/src/app/server
 COPY server/package*.json ./
 RUN npm install --omit=dev
 COPY server/ ./
+
+# Set runtime env only after build steps
+ENV NODE_ENV=production
 
 # Create non-root user
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
