@@ -1,4 +1,4 @@
-name: Advanced CI Pipeline
+name: Enterprise DevSecOps CI Pipeline
 
 on:
   push:
@@ -10,14 +10,17 @@ permissions:
   contents: read
   security-events: write
 
+############################
+# STAGE 1 — SECRET SCAN
+############################
 jobs:
+
   gitleaks-scan:
     name: Gitleaks Scan
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout source code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Run Gitleaks scan
         run: |
@@ -25,9 +28,91 @@ jobs:
             -v "${{ github.workspace }}:/repo" \
             zricethezav/gitleaks:latest detect \
             --source=/repo \
-            --verbose \
+            --report-format=json \
+            --report-path=/repo/gitleaks-report.json \
             --redact \
             --exit-code 0
+
+      - name: Upload Gitleaks report
+        uses: actions/upload-artifact@v4
+        with:
+          name: gitleaks-report
+          path: gitleaks-report.json
+          if-no-files-found: warn
+
+############################
+# STAGE 2 — IAC SECURITY SCANS
+############################
+
+  checkov-terraform:
+    name: Checkov Terraform Scan
+    runs-on: ubuntu-latest
+    needs: gitleaks-scan
+
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install checkov
+
+      - name: Scan Terraform
+        run: |
+          checkov -d . \
+            --framework terraform \
+            --output json \
+            --output-file-path console,checkov-terraform-report.json \
+            --soft-fail
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: checkov-terraform-report
+          path: checkov-terraform-report.json
+
+  checkov-k8s:
+    name: Checkov Kubernetes Scan
+    runs-on: ubuntu-latest
+    needs: gitleaks-scan
+
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install checkov
+
+      - name: Scan Kubernetes
+        run: |
+          checkov -d . \
+            --framework kubernetes \
+            --output json \
+            --output-file-path console,checkov-k8s-report.json \
+            --soft-fail
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: checkov-k8s-report
+          path: checkov-k8s-report.json
+
+  checkov-dockerfile:
+    name: Checkov Dockerfile Scan
+    runs-on: ubuntu-latest
+    needs: gitleaks-scan
+
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install checkov
+
+      - name: Scan Dockerfile
+        run: |
+          checkov -d . \
+            --framework dockerfile \
+            --output json \
+            --output-file-path console,checkov-dockerfile-report.json \
+            --soft-fail
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: checkov-dockerfile-report
+          path: checkov-dockerfile-report.json
+
+############################
+# STAGE 3 — DEPENDENCY VULN SCAN
+############################
 
   client-trivy-fs:
     name: Client Trivy FS Scan
@@ -35,14 +120,22 @@ jobs:
     needs: gitleaks-scan
 
     steps:
-      - name: Checkout source code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+      - uses: aquasecurity/setup-trivy@v0.2.5
 
-      - name: Setup Trivy
-        uses: aquasecurity/setup-trivy@v0.2.5
+      - name: Scan Client FS
+        run: |
+          trivy fs ./client \
+            --format json \
+            --output client-trivy-report.json \
+            --severity HIGH,CRITICAL \
+            --ignore-unfixed \
+            --exit-code 0
 
-      - name: Run Trivy filesystem scan on client
-        run: trivy fs ./client --format table --severity HIGH,CRITICAL --ignore-unfixed --exit-code 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: client-trivy-report
+          path: client-trivy-report.json
 
   server-trivy-fs:
     name: Server Trivy FS Scan
@@ -50,126 +143,118 @@ jobs:
     needs: gitleaks-scan
 
     steps:
-      - name: Checkout source code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+      - uses: aquasecurity/setup-trivy@v0.2.5
 
-      - name: Setup Trivy
-        uses: aquasecurity/setup-trivy@v0.2.5
+      - name: Scan Server FS
+        run: |
+          trivy fs ./server \
+            --format json \
+            --output server-trivy-report.json \
+            --severity HIGH,CRITICAL \
+            --ignore-unfixed \
+            --exit-code 0
 
-      - name: Run Trivy filesystem scan on server
-        run: trivy fs ./server --format table --severity HIGH,CRITICAL --ignore-unfixed --exit-code 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: server-trivy-report
+          path: server-trivy-report.json
+
+############################
+# STAGE 4 — CODE QUALITY
+############################
 
   client-lint:
     name: Client Lint
     runs-on: ubuntu-latest
-    needs: gitleaks-scan
+    needs: client-trivy-fs
 
     defaults:
       run:
         working-directory: client
 
     steps:
-      - name: Checkout source code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 18
           cache: npm
           cache-dependency-path: client/package-lock.json
 
-      - name: Install client dependencies
-        run: npm ci
-
-      - name: Run client lint
-        run: npm run lint --if-present
+      - run: npm ci
+      - run: npm run lint --if-present
         continue-on-error: true
 
   server-lint:
     name: Server Lint
     runs-on: ubuntu-latest
-    needs: gitleaks-scan
+    needs: server-trivy-fs
 
     defaults:
       run:
         working-directory: server
 
     steps:
-      - name: Checkout source code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 18
           cache: npm
           cache-dependency-path: server/package-lock.json
 
-      - name: Install server dependencies
-        run: npm ci
-
-      - name: Run server lint
-        run: npm run lint --if-present
+      - run: npm ci
+      - run: npm run lint --if-present
         continue-on-error: true
+
+############################
+# STAGE 5 — TEST
+############################
 
   client-test:
     name: Client Test
     runs-on: ubuntu-latest
-    needs:
-      - client-trivy-fs
-      - client-lint
+    needs: client-lint
 
     defaults:
       run:
         working-directory: client
 
     steps:
-      - name: Checkout source code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 18
           cache: npm
           cache-dependency-path: client/package-lock.json
 
-      - name: Install client dependencies
-        run: npm ci
-
-      - name: Run client tests
-        run: npm test --if-present
+      - run: npm ci
+      - run: npm test --if-present
         continue-on-error: true
 
   server-test:
     name: Server Test
     runs-on: ubuntu-latest
-    needs:
-      - server-trivy-fs
-      - server-lint
+    needs: server-lint
 
     defaults:
       run:
         working-directory: server
 
     steps:
-      - name: Checkout source code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 18
           cache: npm
           cache-dependency-path: server/package-lock.json
 
-      - name: Install server dependencies
-        run: npm ci
-
-      - name: Run server tests
-        run: npm test --if-present
+      - run: npm ci
+      - run: npm test --if-present
         continue-on-error: true
+
+############################
+# STAGE 6 — BUILD FRONTEND
+############################
 
   client-build:
     name: Client Build
@@ -181,30 +266,27 @@ jobs:
         working-directory: client
 
     steps:
-      - name: Checkout source code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 18
           cache: npm
           cache-dependency-path: client/package-lock.json
 
-      - name: Install client dependencies
-        run: npm ci
+      - run: npm ci
+      - run: npm run build --if-present
 
-      - name: Build client
-        run: npm run build --if-present
-
-      - name: Upload client build artifact
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: client-build
           path: |
             client/build
             client/dist
           if-no-files-found: ignore
+
+############################
+# STAGE 7 — DOCKER BUILD
+############################
 
   docker-build:
     name: Docker Build
@@ -214,26 +296,34 @@ jobs:
       - server-test
 
     steps:
-      - name: Checkout source code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+      - run: docker build -t three-tier-app:${{ github.sha }} .
 
-      - name: Build Docker image
-        run: docker build -t three-tier-app:${{ github.sha }} .
+############################
+# STAGE 8 — IMAGE SCAN
+############################
 
-  image-scan:
+  image-trivy-scan:
     name: Trivy Image Scan
     runs-on: ubuntu-latest
     needs: docker-build
 
     steps:
-      - name: Checkout source code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+      - uses: aquasecurity/setup-trivy@v0.2.5
 
-      - name: Setup Trivy
-        uses: aquasecurity/setup-trivy@v0.2.5
+      - run: docker build -t three-tier-app:${{ github.sha }} .
 
-      - name: Build Docker image for scan
-        run: docker build -t three-tier-app:${{ github.sha }} .
+      - name: Scan Docker Image
+        run: |
+          trivy image three-tier-app:${{ github.sha }} \
+            --format json \
+            --output image-trivy-report.json \
+            --severity HIGH,CRITICAL \
+            --ignore-unfixed \
+            --exit-code 0
 
-      - name: Run Trivy image scan
-        run: trivy image three-tier-app:${{ github.sha }} --format table --severity HIGH,CRITICAL --ignore-unfixed --exit-code 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: image-trivy-report
+          path: image-trivy-report.json
