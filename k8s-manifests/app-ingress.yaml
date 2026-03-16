@@ -2,16 +2,17 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: app-ingress
+  namespace: project
 spec:
   ingressClassName: haproxy
   rules:
-  - host: management.dsvault.in
-    http:
-      paths:
-      - path: /
-        pathType: Prefix
-        backend:
-          service:
-            name: nodejs-service
-            port:
-              number: 5000
+    - host: management.dsvault.in
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: nodejs-service
+                port:
+                  number: 5000
