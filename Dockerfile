@@ -1,17 +1,15 @@
 # syntax=docker/dockerfile:1
 
 ############################
-# Stage 1: Build frontend
+# Stage 1: Build client
 ############################
 FROM node:20-alpine AS client-build
 
-WORKDIR /app/client
+WORKDIR /usr/src/app/client
 
-# Install only from lockfile for reproducibility
 COPY client/package*.json ./
-RUN npm ci
+RUN npm install
 
-# Copy source and build
 COPY client/ ./
 RUN npm run build
 
@@ -20,10 +18,10 @@ RUN npm run build
 ############################
 FROM node:20-alpine AS server-deps
 
-WORKDIR /app/server
+WORKDIR /usr/src/app/server
 
 COPY server/package*.json ./
-RUN npm ci --omit=dev
+RUN npm install --omit=dev
 
 ############################
 # Stage 3: Runtime
@@ -32,30 +30,20 @@ FROM node:20-alpine AS runtime
 
 ENV NODE_ENV=production
 
-WORKDIR /app/server
+WORKDIR /usr/src/app/server
 
-# Create non-root user/group
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 
-# Copy production node_modules first
-COPY --from=server-deps /app/server/node_modules ./node_modules
+COPY --from=server-deps /usr/src/app/server/node_modules ./node_modules
+COPY --chown=appuser:appgroup server/ ./
 
-# Copy server source
-COPY server/ ./
+RUN mkdir -p ./public
+COPY --from=client-build --chown=appuser:appgroup /usr/src/app/client/dist ./public
 
-# Copy built frontend into server public directory
-COPY --from=client-build /app/client/dist ./public
+RUN chown -R appuser:appgroup /usr/src/app/server
 
-# Fix ownership
-RUN chown -R appuser:appgroup /app/server
-
-# Run as non-root
 USER appuser
 
 EXPOSE 5000
-
-# Optional healthcheck if /health exists
-HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
-  CMD wget -qO- http://127.0.0.1:5000/health || exit 1
 
 CMD ["npm", "start"]
