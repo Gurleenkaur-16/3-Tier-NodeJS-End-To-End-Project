@@ -513,7 +513,8 @@ jobs:
       - name: Create kubeconfig
         run: |
           mkdir -p ~/.kube
-          cat <<EOF > ~/.kube/config
+
+          cat > ~/.kube/config <<EOF
           apiVersion: v1
           kind: Config
           clusters:
@@ -533,18 +534,26 @@ jobs:
             user:
               token: ${K8S_TOKEN}
           EOF
+
           chmod 600 ~/.kube/config
+
+          echo "===== kubeconfig check ====="
+          kubectl config view --minify
         env:
           K8S_SERVER: ${{ vars.K8S_SERVER }}
           K8S_NAMESPACE: ${{ vars.K8S_NAMESPACE }}
           K8S_CA_CERT: ${{ secrets.K8S_CA_CERT }}
           K8S_TOKEN: ${{ secrets.K8S_TOKEN }}
 
-      - name: Verify access
+      - name: Verify cluster endpoint
         run: |
-          kubectl config current-context
-          kubectl auth can-i get deployments -n "${{ vars.K8S_NAMESPACE }}"
-          kubectl auth can-i create deployments -n "${{ vars.K8S_NAMESPACE }}"
+          kubectl cluster-info
+          kubectl get namespaces
+
+      - name: Verify RBAC access
+        run: |
+          kubectl auth can-i get deployment -n "${{ vars.K8S_NAMESPACE }}"
+          kubectl auth can-i create deployment -n "${{ vars.K8S_NAMESPACE }}"
 
       - name: Deploy manifests
         run: |
@@ -552,4 +561,4 @@ jobs:
 
       - name: Verify rollout
         run: |
-          kubectl rollout status deployment/nodejs-app -n "${{ vars.K8S_NAMESPACE }}" --timeout=180s
+          kubectl rollout status deployment/nodejs-app -n "${{ vars.K8S_NAMESPACE }}" --timeout=180s  
