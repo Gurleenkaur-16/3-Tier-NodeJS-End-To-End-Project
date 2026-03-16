@@ -1,46 +1,28 @@
-# syntax=docker/dockerfile:1
-
-############################
-# Stage 1: Build client
-############################
-FROM node:20-alpine AS client-build
-
-WORKDIR /usr/src/app/client
-
-COPY client/package*.json ./
-RUN npm install
-
-COPY client/ ./
-RUN npm run build
-
-############################
-# Stage 2: Install server deps
-############################
-FROM node:20-alpine AS server-deps
-
-WORKDIR /usr/src/app/server
-
-COPY server/package*.json ./
-RUN npm install --omit=dev
-
-############################
-# Stage 3: Runtime
-############################
-FROM node:20-alpine AS runtime
+FROM node:20-alpine
 
 ENV NODE_ENV=production
 
-WORKDIR /usr/src/app/server
+# Build frontend
+WORKDIR /usr/src/app/client
+COPY client/package*.json ./
+RUN npm install
+COPY client/ ./
+RUN npm run build
 
+# Build backend
+WORKDIR /usr/src/app/server
+COPY server/package*.json ./
+RUN npm install --omit=dev
+COPY server/ ./
+
+# Create non-root user
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 
-COPY --from=server-deps /usr/src/app/server/node_modules ./node_modules
-COPY --chown=appuser:appgroup server/ ./
+# Copy frontend build files into backend public directory
+RUN mkdir -p ./public && cp -R /usr/src/app/client/dist/* ./public/
 
-RUN mkdir -p ./public
-COPY --from=client-build --chown=appuser:appgroup /usr/src/app/client/dist ./public
-
-RUN chown -R appuser:appgroup /usr/src/app/server
+# Fix ownership
+RUN chown -R appuser:appgroup /usr/src/app
 
 USER appuser
 
