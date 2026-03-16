@@ -1,5 +1,7 @@
 FROM node:20-alpine
 
+ENV NODE_ENV=production
+
 WORKDIR /usr/src/app/client
 COPY client/package*.json ./
 RUN npm install
@@ -11,7 +13,13 @@ COPY server/package*.json ./
 RUN npm install --omit=dev
 COPY server/ ./
 
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+
 RUN mkdir -p ./public && cp -R /usr/src/app/client/public/* ./public/
+
+RUN chown -R appuser:appgroup /usr/src/app
+
+USER appuser
 
 EXPOSE 5000
 
