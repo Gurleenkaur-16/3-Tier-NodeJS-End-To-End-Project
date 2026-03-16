@@ -482,7 +482,8 @@ jobs:
 
       - name: Update image in deployment manifest
         run: |
-          sed -i 's|image: .*|image: ${{ needs.docker-push.outputs.full_image }}|g' k8s-manifests/app-deployment.yaml
+          IMAGE="${{ needs.docker-push.outputs.full_image }}"
+          sed -i "s|image:.*|image: ${IMAGE}|g" k8s/app-deployment.yaml
 
       - name: Show updated manifest
         run: cat k8s-manifests/app-deployment.yaml
