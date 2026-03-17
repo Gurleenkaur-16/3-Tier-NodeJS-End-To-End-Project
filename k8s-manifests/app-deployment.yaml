@@ -15,13 +15,11 @@ spec:
     spec:
       imagePullSecrets:
       - name: regcred
-
       containers:
       - name: nodejs-app
         image: devopsshack/nodejs-crud-project:4b4c436a91effd317c867fc9071e7ff96f3e1153
         ports:
         - containerPort: 5000
-
         env:
         - name: DB_HOST
           value: mysql
@@ -45,4 +43,7 @@ spec:
               key: MYSQL_PASSWORD
 
         - name: DATABASE_URL
-          value: mysql://appuser:apppass@mysql:3306/test_db
+          valueFrom:
+            secretKeyRef:
+              name: mysql-secret
+              key: DATABASE_URL
