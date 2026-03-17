@@ -2,8 +2,9 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: nodejs-app
+  namespace: project
 spec:
-  replicas: 1 
+  replicas: 1
   selector:
     matchLabels:
       app: nodejs-app
@@ -12,6 +13,9 @@ spec:
       labels:
         app: nodejs-app
     spec:
+      imagePullSecrets:
+      - name: regcred
+
       containers:
       - name: nodejs-app
         image: devopsshack/nodejs-crud-project:4b4c436a91effd317c867fc9071e7ff96f3e1153
