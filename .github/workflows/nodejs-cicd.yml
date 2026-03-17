@@ -524,11 +524,13 @@ jobs:
 
       - name: Verify cluster access
         shell: bash
+        env:
+          K8S_NAMESPACE: project
         run: |
           set -euo pipefail
-          kubectl cluster-info
-          kubectl get ns
-          kubectl get pods -n project
+          kubectl get pods -n "${K8S_NAMESPACE}"
+          kubectl get services -n "${K8S_NAMESPACE}"
+          kubectl get sa -n "${K8S_NAMESPACE}"
 
       - name: Verify RBAC access
         shell: bash
