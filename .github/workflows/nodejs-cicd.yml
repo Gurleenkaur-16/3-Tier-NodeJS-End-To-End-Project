@@ -9,6 +9,7 @@ on:
 permissions:
   contents: write
   security-events: write
+  id-token: write
 
 env:
   IMAGE_NAME: devopsshack/nodejs-crud-project
