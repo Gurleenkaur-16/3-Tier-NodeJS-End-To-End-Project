@@ -495,8 +495,6 @@ jobs:
           git add k8s-manifests/app-deployment.yaml
           git diff --cached --quiet || git commit -m "ci: update deployment image to ${{ needs.docker-push.outputs.image_tag }} [skip ci]"
           git push
-
-          
   deploy-to-k8s:
     name: Deploy to Kubernetes
     runs-on: ubuntu-latest
@@ -510,55 +508,46 @@ jobs:
       - name: Setup kubectl
         uses: azure/setup-kubectl@v4
 
-      - name: Create kubeconfig
+      - name: Setup kubeconfig
+        shell: bash
         run: |
-          mkdir -p ~/.kube
+          set -euo pipefail
+          mkdir -p "${HOME}/.kube"
+          echo "${{ secrets.KUBE_CONFIG_B64 }}" | base64 -d > "${HOME}/.kube/config"
+          chmod 600 "${HOME}/.kube/config"
 
-          cat > ~/.kube/config <<EOF
-          apiVersion: v1
-          kind: Config
-          clusters:
-          - name: target-cluster
-            cluster:
-              server: ${K8S_SERVER}
-              certificate-authority-data: ${K8S_CA_CERT}
-          contexts:
-          - name: github-actions-context
-            context:
-              cluster: target-cluster
-              namespace: ${K8S_NAMESPACE}
-              user: github-actions-sa
-          current-context: github-actions-context
-          users:
-          - name: github-actions-sa
-            user:
-              token: ${K8S_TOKEN}
-          EOF
-
-          chmod 600 ~/.kube/config
+          echo "===== current context ====="
+          kubectl config current-context
 
           echo "===== kubeconfig check ====="
           kubectl config view --minify
-        env:
-          K8S_SERVER: ${{ vars.K8S_SERVER }}
-          K8S_NAMESPACE: ${{ vars.K8S_NAMESPACE }}
-          K8S_CA_CERT: ${{ secrets.K8S_CA_CERT }}
-          K8S_TOKEN: ${{ secrets.K8S_TOKEN }}
 
-      - name: Verify cluster endpoint
+      - name: Verify cluster access
+        shell: bash
         run: |
+          set -euo pipefail
           kubectl cluster-info
-          kubectl get namespaces
+          kubectl get ns
+          kubectl get pods -n project
 
       - name: Verify RBAC access
+        shell: bash
         run: |
-          kubectl auth can-i get deployment -n "${{ vars.K8S_NAMESPACE }}"
-          kubectl auth can-i create deployment -n "${{ vars.K8S_NAMESPACE }}"
+          set -euo pipefail
+          kubectl auth can-i get deployments -n project
+          kubectl auth can-i create deployments -n project
+          kubectl auth can-i create services -n project
+          kubectl auth can-i create ingresses.networking.k8s.io -n project
 
       - name: Deploy manifests
+        shell: bash
         run: |
-          kubectl apply -f k8s-manifests/ -n "${{ vars.K8S_NAMESPACE }}"
+          set -euo pipefail
+          kubectl apply -f k8s-manifests/ -n project
 
       - name: Verify rollout
+        shell: bash
         run: |
-          kubectl rollout status deployment/nodejs-app -n "${{ vars.K8S_NAMESPACE }}" --timeout=180s  
+          set -euo pipefail
+          kubectl rollout status deployment/nodejs-app -n project --timeout=180s
+          
