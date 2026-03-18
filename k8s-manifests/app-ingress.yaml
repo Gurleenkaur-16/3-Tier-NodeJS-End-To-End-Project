@@ -6,7 +6,7 @@ metadata:
 spec:
   ingressClassName: haproxy
   rules:
-    - host: management.dsvault.in
+    - host: project.dsvault.in
       http:
         paths:
           - path: /
