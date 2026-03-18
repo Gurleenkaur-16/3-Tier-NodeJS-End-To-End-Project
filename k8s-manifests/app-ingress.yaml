@@ -3,10 +3,16 @@ kind: Ingress
 metadata:
   name: app-ingress
   namespace: project
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80},{"HTTPS":443}]'
+    alb.ingress.kubernetes.io/ssl-redirect: '443'
+    alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:ap-south-1:585593375370:certificate/f75a1dc8-d577-4be0-96e9-4852e00ff0a3
 spec:
-  ingressClassName: haproxy
+  ingressClassName: alb
   rules:
-    - host: project.dsvault.in
+    - host: awscday.in
       http:
         paths:
           - path: /
