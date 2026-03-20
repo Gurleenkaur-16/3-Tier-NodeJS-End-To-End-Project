@@ -8,11 +8,11 @@ metadata:
     alb.ingress.kubernetes.io/target-type: ip
     alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80},{"HTTPS":443}]'
     alb.ingress.kubernetes.io/ssl-redirect: '443'
-    alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:ap-south-1:585593375370:certificate/f75a1dc8-d577-4be0-96e9-4852e00ff0a3
+    alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:ap-south-1:585593375370:certificate/95dd7b2c-b425-454c-a187-359a77005216
 spec:
   ingressClassName: alb
   rules:
-    - host: awscday.in
+    - host: awscdaypune.in
       http:
         paths:
           - path: /
