@@ -64,7 +64,7 @@ A production-grade, 3-tier web application used as the base for a complete DevSe
 
 > Full pipeline documentation, deep-dive PDF, and supporting assets are available in the Google Drive folder below.
 
-### [Pipeline Resources & Guide — Google Drive](https://drive.google.com/drive/folders/1D8oKVtzx88l3XIJH-iKU1pYPa9UKe7bM?usp=sharing)
+### [Pipeline Resources & Guide — Google Drive](https://drive.google.com/drive/folders/1C3c9sUNMvZtpKuG9gBuxQk6DvEkHgALh?usp=sharing)
 
 The Drive folder contains:
 - DevSecOps CI Pipeline Deep Dive PDF (31 pages, all 15 jobs explained)
