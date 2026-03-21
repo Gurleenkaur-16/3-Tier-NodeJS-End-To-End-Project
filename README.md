@@ -1,169 +1,310 @@
+# 3-Tier NodeJS CRUD App — DevSecOps End-to-End Project
 
-# DevOps Shack User Management App
+> **DevOps Shack** | @devopsshack | 2026  
+> Full-stack user management app deployed on AWS EKS with an Enterprise DevSecOps CI/CD pipeline using GitHub Actions.
 
-This is a full-stack application for managing users with a front-end built using HTML, CSS, and JavaScript, and a back-end powered by Node.js, Express, and MySQL.
+---
 
-## Table of Contents
+## What This Project Is
 
-- [Features](#features)
-- [Prerequisites](#prerequisites)
-- [Setup Instructions](#setup-instructions)
-  - [1. Setting Up MySQL Server](#1-setting-up-mysql-server)
-  - [2. Configuring and Running the Client](#2-configuring-and-running-the-client)
-  - [3. Configuring and Running the Server](#3-configuring-and-running-the-server)
-- [Usage](#usage)
-- [License](#license)
+A production-grade, 3-tier web application used as the base for a complete DevSecOps pipeline demonstration. The app is a simple User Management CRUD system — the real learning is in how it is built, secured, containerised, and deployed end-to-end without manual steps.
 
-## Features
+**Stack:**
+- **Frontend** — React 17, Webpack, Axios
+- **Backend** — Node.js, Express 4, MySQL
+- **Container** — Docker (multi-stage, non-root user)
+- **Orchestration** — Kubernetes on AWS EKS
+- **CI/CD** — GitHub Actions (15 jobs, 5 security scanners)
+- **Ingress** — AWS ALB via AWS Load Balancer Controller
 
-- Add new users with a name, email, and role (User/Admin).
-- View a list of all users.
-- Edit user details.
-- Delete users.
-- Responsive and user-friendly UI.
-- Smooth animations and minimalistic design.
+---
 
-## Prerequisites
+## Project Structure
 
-Before setting up this project, ensure you have the following installed on your machine:
+```
+3-Tier-NodeJS-End-To-End-Project/
+├── client/                        # React frontend
+│   ├── src/
+│   │   ├── App.js                 # Main app component
+│   │   ├── components/            # UsersList, UserItem
+│   │   └── api/users.js           # Axios API calls
+│   ├── public/                    # Static assets
+│   ├── package.json               # React + Webpack deps
+│   └── webpack.config.js
+├── server/                        # Node.js backend
+│   ├── server.js                  # Entry point (port 5000)
+│   ├── routes/users.js            # REST API routes
+│   ├── controllers/               # userController.js
+│   ├── models/userModel.js        # MySQL queries
+│   └── config/db.js               # DB connection
+├── k8s-manifests/
+│   ├── app-deployment.yaml        # EKS Deployment (SHA-tagged image)
+│   ├── app-svc.yaml               # ClusterIP Service
+│   └── app-ingress.yaml           # ALB Ingress (awscdaypune.in)
+├── .github/workflows/
+│   └── nodejs-cicd.yml            # 15-job DevSecOps pipeline
+├── Dockerfile                     # Multi-stage, non-root build
+├── docker-compose.yml             # Local dev with MySQL
+└── README.md
+```
 
-- [Node.js](https://nodejs.org/) (version 12.x or higher)
-- [MySQL](https://www.mysql.com/) (version 5.7 or higher)
+---
 
-## Setup Instructions
+## Application Features
 
-### 1. Setting Up MySQL Server
+- Add users (name, email, role: Admin/User)
+- View all users in a list
+- Edit user details
+- Delete users
+- Responsive UI with smooth animations
 
-First, you need to set up a MySQL server on your local machine.
+---
 
-1. **Update the package index:**
+## Pipeline — Step-by-Step Guide
 
-   ```bash
-   sudo apt update
-   ```
+> Full pipeline documentation, deep-dive PDF, and supporting assets are available in the Google Drive folder below.
 
-2. **Install the MySQL server:**
+### [Pipeline Resources & Guide — Google Drive](https://drive.google.com/drive/folders/1D8oKVtzx88l3XIJH-iKU1pYPa9UKe7bM?usp=sharing)
 
-   ```bash
-   sudo apt install mysql-server
-   ```
+The Drive folder contains:
+- DevSecOps CI Pipeline Deep Dive PDF (31 pages, all 15 jobs explained)
+- GitHub Actions workflow YAML
+- Kubernetes manifests
+- IAM policy JSON for ALB Controller
+- Supporting diagrams and cheatsheets
 
-3. **Log in to the MySQL shell as root:**
+---
 
-   ```bash
-   sudo mysql -u root
-   ```
+## Pipeline Overview — 15 Jobs, 10 Waves
 
-4. **Set a password for the root user and update the authentication method:**
+| Wave | Jobs | Purpose |
+|------|------|---------|
+| 1 | `gitleaks-scan` | Secret scanning — blocks everything if it fails |
+| 2 | `checkov-terraform`, `checkov-k8s`, `checkov-dockerfile`, `client-trivy-fs`, `server-trivy-fs` | IaC + dependency vulnerability scans (parallel) |
+| 3 | `client-lint`, `server-lint` | Code quality gate |
+| 4 | `client-test`, `server-test` | Unit tests |
+| 5 | `client-build` | Frontend compilation |
+| 6 | `docker-build` | Docker image assembly |
+| 7 | `image-trivy-scan` | Container image vulnerability scan |
+| 8 | `docker-push` | Push to Docker Hub (main branch only) |
+| 9 | `update-k8s-manifest` | GitOps — update image SHA in YAML, commit back |
+| 10 | `deploy-to-k8s` | Deploy to EKS via OIDC (no static credentials) |
 
-   ```sql
-   ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY 'password';
-   FLUSH PRIVILEGES;
-   ```
+**Security scanners used:** Gitleaks · Checkov (Terraform, K8s, Dockerfile) · Trivy FS (client + server) · Trivy Image
 
-   Replace `'password'` with a secure password of your choice.
+---
 
-5. **Exit the MySQL shell:**
+## Step-by-Step Setup
 
-   ```sql
-   exit;
-   ```
+### Step 1 — Prerequisites
 
-6. **Log in to the MySQL shell again with the new password:**
+- AWS CLI configured (`aws configure`)
+- `kubectl` installed
+- `eksctl` installed
+- `helm` installed
+- Docker installed
+- GitHub repository forked or cloned
 
-   ```bash
-   sudo mysql -u root -p
-   ```
+### Step 2 — Create EKS Cluster
 
-   Enter the password you set in the previous step.
+```bash
+eksctl create cluster \
+  --name my-cluster \
+  --region ap-south-1 \
+  --nodegroup-name standard-nodes \
+  --node-type t3.medium \
+  --nodes 2
+```
 
-7. **Create a new database:**
+### Step 3 — Tag Public Subnets for ALB
 
-   ```sql
-   CREATE DATABASE test_db;
-   ```
+```powershell
+# Auto-tag all public subnets (PowerShell)
+(aws ec2 describe-subnets --region ap-south-1 `
+  --filters "Name=tag:alpha.eksctl.io/cluster-name,Values=my-cluster" `
+  --query "Subnets[?MapPublicIpOnLaunch==``true``].SubnetId" `
+  --output text).Split() | ForEach-Object {
+  aws ec2 create-tags --region ap-south-1 --resources $_ `
+    --tags Key=kubernetes.io/role/elb,Value=1 `
+           Key=kubernetes.io/cluster/my-cluster,Value=shared
+}
+```
 
-8. **Switch to the new database:**
+### Step 4 — Install AWS Load Balancer Controller
 
-   ```sql
-   USE test_db;
-   ```
+```bash
+# Create IAM policy
+aws iam create-policy \
+  --policy-name AWSLoadBalancerControllerIAMPolicy \
+  --policy-document file://iam_policy.json
 
-9. **Create the `users` table:**
+# Associate OIDC provider
+eksctl utils associate-iam-oidc-provider \
+  --region ap-south-1 --cluster my-cluster --approve
 
-   ```sql
-   CREATE TABLE users (
-       id INT AUTO_INCREMENT PRIMARY KEY,
-       name VARCHAR(255) NOT NULL,
-       email VARCHAR(255) NOT NULL UNIQUE,
-       role ENUM('Admin', 'User') NOT NULL
-   );
-   ```
+# Create service account with IAM binding
+eksctl create iamserviceaccount \
+  --cluster=my-cluster --namespace=kube-system \
+  --name=aws-load-balancer-controller \
+  --attach-policy-arn=arn:aws:iam::<ACCOUNT_ID>:policy/AWSLoadBalancerControllerIAMPolicy \
+  --override-existing-serviceaccounts --region ap-south-1 --approve
 
-   This table will store user information, including their name, email, and role.
+# Install via Helm
+helm repo add eks https://aws.github.io/eks-charts && helm repo update eks
+helm install aws-load-balancer-controller eks/aws-load-balancer-controller \
+  -n kube-system \
+  --set clusterName=my-cluster \
+  --set serviceAccount.create=false \
+  --set serviceAccount.name=aws-load-balancer-controller \
+  --version 1.14.0
+```
 
-### 2. Configuring and Running the Client
+### Step 5 — Create Kubernetes Namespace + Secrets
 
-The client side of the application is built using modern JavaScript, HTML, and CSS. To configure and run the client:
+```bash
+kubectl create namespace project
 
-1. **Navigate to the client folder:**
+kubectl create secret generic mysql-secret -n project \
+  --from-literal=MYSQL_DATABASE=test_db \
+  --from-literal=MYSQL_USER=appuser \
+  --from-literal=MYSQL_PASSWORD=apppass \
+  --from-literal=DATABASE_URL=mysql://appuser:apppass@mysql:3306/test_db
+```
 
-   ```bash
-   cd client
-   ```
+### Step 6 — Configure GitHub Secrets
 
-2. **Install the required dependencies:**
+Go to your repo **Settings > Secrets and variables > Actions** and add:
 
-   ```bash
-   npm install
-   ```
+| Secret | Value |
+|--------|-------|
+| `DOCKERHUB_USERNAME` | Your Docker Hub username |
+| `DOCKERHUB_TOKEN` | Docker Hub access token (not password) |
+| `AWS_ROLE_TO_ASSUME` | `arn:aws:iam::<ACCOUNT_ID>:role/GitHubActionsEKSDeployRole` |
 
-3. **Build the client application:**
+> `GITHUB_TOKEN` is auto-provided — no action needed.
 
-   ```bash
-   npm run build
-   ```
+### Step 7 — Set Up GitHub OIDC IAM Role
 
-   This will create a production build of the client application, which will be served by the Express server.
+Create an IAM role in AWS with the following trust policy (replace `<GITHUB_ORG>` and `<REPO_NAME>`):
 
-### 3. Configuring and Running the Server
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [{
+    "Effect": "Allow",
+    "Principal": {
+      "Federated": "arn:aws:iam::<ACCOUNT_ID>:oidc-provider/token.actions.githubusercontent.com"
+    },
+    "Action": "sts:AssumeRoleWithWebIdentity",
+    "Condition": {
+      "StringEquals": {
+        "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
+        "token.actions.githubusercontent.com:sub": "repo:<GITHUB_ORG>/<REPO_NAME>:ref:refs/heads/main"
+      }
+    }
+  }]
+}
+```
 
-The server side is built using Node.js and Express and connects to the MySQL database to manage user data.
+Attach policies: `AmazonEKSClusterPolicy`, `AmazonEKSWorkerNodePolicy`, `AmazonEC2ContainerRegistryReadOnly`.
 
-1. **Navigate to the server folder:**
+### Step 8 — Push to Main to Trigger Pipeline
 
-   ```bash
-   cd server
-   ```
+```bash
+git add .
+git commit -m "feat: initial commit"
+git push origin main
+```
 
-2. **Install the required dependencies:**
+The pipeline runs automatically. On push to `main`, all 15 jobs execute including Docker push, GitOps manifest update, and EKS deploy.
 
-   ```bash
-   npm install
-   ```
+---
 
-3. **Start the server:**
+## Running Locally (Docker Compose)
 
-   ```bash
-   npm start
-   ```
+```bash
+# Clone the repo
+git clone https://github.com/<your-org>/3-Tier-NodeJS-End-To-End-Project.git
+cd 3-Tier-NodeJS-End-To-End-Project
 
-   The server will run on `http://localhost:5000` by default.
+# Start MySQL + App
+docker compose up --build
 
-## Usage
+# Access the app
+open http://localhost:5000
+```
 
-After following the setup instructions, you can access the application by navigating to `http://localhost:5000` in your web browser.
+Docker Compose spins up:
+- MySQL 8.0 with health check
+- Node.js app (builds client + server, serves on port 5000)
 
-### User Management Features:
+---
 
-- **Add User:** Fill in the name, email, and role in the form and click "Add User" to add a new user.
-- **View Users:** The user list will be displayed below the form. Each user entry will have "Edit" and "Delete" buttons.
-- **Edit User:** Click the "Edit" button next to a user entry to update their details.
-- **Delete User:** Click the "Delete" button next to a user entry to remove them from the list.
+## Kubernetes Manifests
+
+### Deployment (`k8s-manifests/app-deployment.yaml`)
+
+- Image tagged with `GITHUB_SHA` — immutable, every commit gets a unique tag
+- Secrets pulled from `mysql-secret` Kubernetes Secret
+- `imagePullSecrets` references `regcred` for Docker Hub authentication
+
+### Ingress (`k8s-manifests/app-ingress.yaml`)
+
+- ALB scheme: `internet-facing`
+- Target type: `ip` (pod-level routing)
+- HTTPS on port 443 with ACM certificate
+- HTTP → HTTPS redirect
+- Host: `awscdaypune.in`
+
+---
+
+## Security Features
+
+| Feature | Tool | What It Catches |
+|---------|------|-----------------|
+| Secret scanning | Gitleaks | Hardcoded API keys, tokens, passwords in code/git history |
+| IaC scanning | Checkov | Terraform, K8s, Dockerfile misconfigurations |
+| Dependency CVEs | Trivy FS | Known CVEs in npm packages (client + server) |
+| Image CVEs | Trivy Image | OS-level CVEs in Docker base image layers |
+| No static credentials | GitHub OIDC | Eliminates long-lived AWS access keys entirely |
+| Non-root container | Dockerfile | `appuser` group — no root process in production |
+
+---
+
+## Environment Variables
+
+| Variable | Source | Description |
+|----------|--------|-------------|
+| `DB_HOST` | Hardcoded `mysql` | MySQL service hostname in K8s |
+| `DB_NAME` | `mysql-secret` | Database name (`test_db`) |
+| `DB_USER` | `mysql-secret` | DB username |
+| `DB_PASSWORD` | `mysql-secret` | DB password |
+| `DATABASE_URL` | `mysql-secret` | Full connection URL |
+| `NODE_ENV` | Dockerfile | Set to `production` in container |
+
+---
+
+## Tech Versions
+
+| Component | Version |
+|-----------|---------|
+| Node.js | 20 (Alpine) |
+| React | 17.0.2 |
+| Express | 4.17.1 |
+| MySQL (client) | 2.18.1 |
+| MySQL (server) | 8.0 |
+| Webpack | 5.x |
+| ALB Controller | 1.14.0 |
+| eksctl | 0.224.0 |
+
+---
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License.
 
-### NOTE: This Application Should not be used for commercial purpose by anyone else other than DevOps Shack
+> **NOTE:** This application should not be used for commercial purposes by anyone other than DevOps Shack.
 
+---
+
+*DevOps Shack | @devopsshack | Building DevOps education for everyone*
