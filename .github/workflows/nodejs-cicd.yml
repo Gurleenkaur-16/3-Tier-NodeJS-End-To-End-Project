@@ -534,6 +534,9 @@ jobs:
     steps:
       - name: Checkout latest code
         uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          ref: main   # ← explicitly pull latest main, not the trigger SHA
 
       - name: Configure AWS credentials from GitHub OIDC
         uses: aws-actions/configure-aws-credentials@v4
