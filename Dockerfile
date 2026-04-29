@@ -1,14 +1,14 @@
-FROM node:20-apline
+FROM node:20-alpine
 
 WORKDIR /app
 
-COPY server/package.json package-lock.json ./
+COPY server/package*.json ./
 
-COPY . .
+COPY server/ ./
 
 RUN npm install
 
 EXPOSE 5000
 
-CMD ["node" , "server.js"]
+CMD npm start
 
