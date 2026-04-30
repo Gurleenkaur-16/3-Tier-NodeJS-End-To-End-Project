@@ -87,3 +87,7 @@ temp/
 ############################
 jest-report
 test-results
+
+mysql_data
+node_modules
+.git
